@@ -18,39 +18,35 @@ Rotas otimizadas por veiculo:
 
 VEICULO 1
 ------------------------------
-1. Hospital Sao Luiz Alphaville - Prioridade: 7 - Peso: 12kg
-2. Hospital Sao Luiz Sao Caetano - Prioridade: 9 - Peso: 18kg
-3. Hospital e Maternidade Ribeirao Pires - Prioridade: 8 - Peso: 14kg
-4. Hospital Brasil Maua - Prioridade: 8 - Peso: 15kg
-5. Hospital Villa Lobos - Prioridade: 7 - Peso: 14kg
-6. Hospital Sao Luiz Osasco - Prioridade: 7 - Peso: 15kg
-Peso total estimado do veiculo 1: 88kg
+1. Hospital Sao Luiz Sao Bernardo - Prioridade: 10 - Peso: 22kg
+2. Hospital Sao Luiz Guarulhos - Prioridade: 7 - Peso: 13kg
+3. Hospital Sao Luiz Analia Franco - Prioridade: 8 - Peso: 17kg
+4. Hospital Villa Lobos - Prioridade: 7 - Peso: 14kg
+5. Hospital da Crianca - Prioridade: 9 - Peso: 16kg
+6. Hospital Sao Luiz Jabaquara - Prioridade: 8 - Peso: 16kg
+7. Hospital Bartira - Santo Andre - Prioridade: 8 - Peso: 18kg
+8. Hospital IFOR - Sao Bernardo - Prioridade: 9 - Peso: 20kg
+Peso total estimado do veiculo 1: 136kg
 
 VEICULO 2
 ------------------------------
-1. Hospital Sao Luiz Sao Bernardo - Prioridade: 10 - Peso: 22kg
-2. Hospital Sao Luiz Morumbi - Prioridade: 9 - Peso: 18kg
-3. Hospital da Crianca - Prioridade: 9 - Peso: 16kg
-4. Hospital Sao Luiz Jabaquara - Prioridade: 8 - Peso: 16kg
-5. Hospital IFOR - Sao Bernardo - Prioridade: 9 - Peso: 20kg
-Peso total estimado do veiculo 2: 92kg
-
-VEICULO 3
-------------------------------
-1. Hospital Sao Luiz Guarulhos - Prioridade: 7 - Peso: 13kg
+1. Hospital e Maternidade Brasil - Santo Andre - Prioridade: 10 - Peso: 24kg
 2. Hospital Sao Luiz Itaim - Prioridade: 10 - Peso: 20kg
-3. Hospital e Maternidade Brasil - Santo Andre - Prioridade: 10 - Peso: 24kg
-4. Hospital Bartira - Santo Andre - Prioridade: 8 - Peso: 18kg
-5. Hospital Sao Luiz Analia Franco - Prioridade: 8 - Peso: 17kg
-Peso total estimado do veiculo 3: 92kg
+3. Hospital Sao Luiz Morumbi - Prioridade: 9 - Peso: 18kg
+4. Hospital Sao Luiz Alphaville - Prioridade: 7 - Peso: 12kg
+5. Hospital Sao Luiz Osasco - Prioridade: 7 - Peso: 15kg
+6. Hospital Sao Luiz Sao Caetano - Prioridade: 9 - Peso: 18kg
+7. Hospital e Maternidade Ribeirao Pires - Prioridade: 8 - Peso: 14kg
+8. Hospital Brasil Maua - Prioridade: 8 - Peso: 15kg
+Peso total estimado do veiculo 2: 136kg
 
 
 Indicadores da otimizacao:
-- Quantidade de veiculos: 3
-- Custo baseline aproximado: 16386.72
-- Custo final calculado pelo algoritmo genetico: 14363.71
-- Distancia total aproximada: 288.29 km
-- Melhoria percentual aproximada: 12.35%
+- Quantidade de veiculos: 2
+- Custo baseline aproximado: 30362.97
+- Custo final calculado pelo algoritmo genetico: 27424.6
+- Distancia total aproximada: 245.75 km
+- Melhoria percentual aproximada: 9.68%
 
 Contexto operacional:
 - Entregas de maior prioridade devem ser atendidas mais cedo.
