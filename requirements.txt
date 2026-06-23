@@ -1,3 +1,5 @@
 pygame
 matplotlib
 numpy
+scikit-learn
+folium

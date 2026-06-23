@@ -20,6 +20,9 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 import pygame
 
+import folium
+
+
 
 def draw_plot(screen, x, y, x_label="Generation", y_label="Fitness"):
     """
@@ -81,3 +84,10 @@ def draw_text(screen, text, color, position=(10, 10)):
     my_font = pygame.font.SysFont("Arial", 15)
     text_surface = my_font.render(text, False, color)
     screen.blit(text_surface, position)
+
+def save_html_map(route, output_path="resultado_final.html"):
+    route = route + [route[0]] 
+    m = folium.Map(location=[-23.55615657785592, -46.64036021616819], zoom_start=12)
+    folium.PolyLine(route, tooltip="Route").add_to(m)
+    m.save(output_path)
+    

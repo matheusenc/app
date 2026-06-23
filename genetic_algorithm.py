@@ -10,24 +10,101 @@ import copy
 import math
 import random
 from typing import Dict, List, Optional, Tuple
-
+from sklearn.neighbors import NearestNeighbors
+import numpy as np
 
 Point = Tuple[float, float]
 Route = List[Point]
+
+def order_by_nearest(coords_rad, cities_coords, n):
+    """
+    Retorna as coordenadas das cidades ordenadas pela heurística do vizinho mais próximo.
+    coords_rad: coordenadas em radianos (para haversine)
+    cities_coords: coordenadas originais (para retornar na ordem correta)
+    """
+    nbrs = NearestNeighbors(n_neighbors=n, metric='haversine', algorithm='ball_tree').fit(coords_rad)
+
+    visited = [False] * n
+    order = [0]
+    visited[0] = True
+    current = 0
+
+    for _ in range(n - 1):
+        distances, indices = nbrs.kneighbors([coords_rad[current]])
+        for idx in indices[0]:
+            if not visited[idx]:
+                visited[idx] = True
+                order.append(idx)
+                current = idx
+                break
+
+    # Retorna as coordenadas originais na ordem calculada
+    return [cities_coords[i] for i in order]
 
 
 '''------------------------------------------------------------------
 Gera a populacao inicial do algoritmo genetico.
 Cada individuo e uma rota com todos os hospitais em uma ordem aleatoria.
 ------------------------------------------------------------------'''
+def generate_random_population_with_pre_ordering(
+    cities_location: List[Point],
+    population_size: int
+) -> List[Route]:
+    cities_location_len = len(cities_location)
+
+    if cities_location_len > 1:
+        mid = cities_location_len // 2
+        cities_part_1 = cities_location[:mid]  # será pré-ordenada
+        cities_part_2 = cities_location[mid:]  # será embaralhada
+
+        # Converte para radianos (necessário para haversine)
+        coords_rad = np.radians(np.array(cities_part_1))
+
+        # Obtém a parte 1 ordenada por vizinho mais próximo (UMA única sequência)
+        ordered_part_1 = order_by_nearest(coords_rad, cities_part_1, len(cities_part_1))
+
+        # Gera population_size indivíduos, cada um com a rota completa:
+        # parte 1 pré-ordenada (fixa) + parte 2 embaralhada (aleatória)
+        population = [
+            ordered_part_1 + random.sample(cities_part_2, len(cities_part_2))
+            for _ in range(population_size)
+        ]
+
+        return population
+
+    else:
+        return [
+            random.sample(cities_location, len(cities_location))
+            for _ in range(population_size)
+        ]
+    
+def  generate_pre_ordering_population(
+    cities_location: List[Point],
+    population_size: int
+) -> List[Route]:
+    coords_rad = np.radians(np.array(cities_location))
+
+    ordered_part_1 = order_by_nearest(coords_rad, cities_location, len(cities_location))
+
+    population = [
+        ordered_part_1
+        for _ in range(population_size)
+    ]
+
+    return population
+
+
 def generate_random_population(
     cities_location: List[Point],
     population_size: int
 ) -> List[Route]:
+
     return [
         random.sample(cities_location, len(cities_location))
         for _ in range(population_size)
     ]
+
+
 
 '''------------------------------------------------------------------
 Calcula a distancia geografica aproximada entre duas coordenadas.
@@ -134,6 +211,13 @@ def mutate(
         )
 
     return mutated_solution
+
+def inversion_mutate(solution, mutation_probability):
+    mutated = copy.deepcopy(solution)
+    if random.random() < mutation_probability:
+        i, j = sorted(random.sample(range(len(solution)), 2))
+        mutated[i:j+1] = reversed(mutated[i:j+1])
+    return mutated
 
 
 '''------------------------------------------------------------------

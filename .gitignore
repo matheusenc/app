@@ -1,4 +1,6 @@
-prompt_llm.txt
 venv
 .vscode
 __pycache__
+mapa_baseline.html
+mapa_otimizado.html
+prompt_llm.txt
