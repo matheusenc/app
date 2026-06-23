@@ -1,1 +1,4 @@
 prompt_llm.txt
+venv
+.vscode
+__pycache__

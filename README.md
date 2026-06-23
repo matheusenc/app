@@ -37,10 +37,34 @@ Encontrar uma rota otimizada para entrega de medicamentos e insumos entre unidad
 
 ## Como executar
 
+Criar o ambiente virtual Python
+
+```bash
+python3 -m venv venv     
+```
+
+Ativar o ambiente virtual (Windows):
+
+```bash
+venv\Scripts\activate
+```
+
+Ativar o ambiente virtual (Linux/macOS):
+
+```bash
+source venv/bin/activate
+```
+
 Instale as dependencias:
 
 ```bash
 pip install -r requirements.txt
+```
+
+ou 
+
+```bash
+pip install pygame-ce matplotlib numpy 
 ```
 
 Execute:
