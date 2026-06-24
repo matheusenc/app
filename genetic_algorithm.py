@@ -313,11 +313,6 @@ def calculate_hospital_fitness(
 ) -> float:
     distance = calculate_fitness(path)
 
-    priority_penalty = 0.0
-    for position, city in enumerate(path):
-        priority = priorities.get(city, 1)
-        priority_penalty += position * priority * 2.0
-
     total_weight = sum(
         weights.get(city, 0)
         for city in path
@@ -335,6 +330,7 @@ def calculate_hospital_fitness(
             distance - max_distance
         ) * 3.0
 
+    priority_penalty = 0.0
     time_penalty = 0.0
     traffic_penalty = 0.0
     elapsed_time = 0.0
@@ -363,6 +359,10 @@ def calculate_hospital_fitness(
                 traffic_penalty += segment_distance * 3.0
             elif traffic_speed <= 25.0:
                 traffic_penalty += segment_distance * 1.5
+
+        priority = priorities.get(city, 1)
+        priority_penalty += elapsed_time * (priority / 10) * 0.2
+        
 
         if time_windows and city in time_windows:
             start, end = time_windows[city]
