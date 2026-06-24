@@ -20,6 +20,9 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 import pygame
 
+import folium
+
+
 
 def draw_plot(screen, x, y, x_label="Generation", y_label="Fitness"):
     """
@@ -81,3 +84,62 @@ def draw_text(screen, text, color, position=(10, 10)):
     my_font = pygame.font.SysFont("Arial", 15)
     text_surface = my_font.render(text, False, color)
     screen.blit(text_surface, position)
+
+def save_html_map(
+    route,
+    hospital_names,
+    priorities,
+    weights,
+    output_path="resultado_final.html"
+):
+    route_closed = route + [route[0]]
+
+    center_lat = sum(p[0] for p in route) / len(route)
+    center_lon = sum(p[1] for p in route) / len(route)
+
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
+
+    # Linha da rota
+    folium.PolyLine(
+        route_closed,
+        color="blue",
+        weight=3,
+        opacity=0.8,
+        tooltip="Rota otimizada"
+    ).add_to(m)
+
+    # Marcadores por hospital
+    for i, point in enumerate(route):
+        name     = hospital_names.get(point, str(point))
+        priority = priorities.get(point, "-")
+        weight   = weights.get(point, "-")
+
+        # Ponto inicial e final em verde, demais em vermelho
+        if i == 0:
+            icon = folium.Icon(color="green", icon="play", prefix="fa")
+            label = "INÍCIO"
+        elif i == len(route) - 1:
+            icon = folium.Icon(color="green", icon="plus-sign", prefix="glyphicon")
+            label = "FIM"
+        else:
+            icon = folium.Icon(color="red", icon="plus-sign", prefix="glyphicon")
+            label = f"Parada {i}"
+
+        popup_html = f"""
+        <div style="font-family:Arial; min-width:180px">
+            <b>{name}</b><br>
+            <hr style="margin:4px 0">
+            {label}<br>
+            Prioridade: <b>{priority}</b><br>
+            Peso: <b>{weight}kg</b>
+        </div>
+        """
+
+        folium.Marker(
+            location=[point[0], point[1]],
+            tooltip=f"{i if i > 0 else '★'} — {name} (P{priority})",
+            popup=folium.Popup(popup_html, max_width=220),
+            icon=icon,
+        ).add_to(m)
+
+    m.save(output_path)
