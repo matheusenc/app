@@ -18,17 +18,23 @@ from genetic_algorithm import (
     calculate_hospital_fitness,
     calculate_operation_time,
     calculate_route_time,
+    generate_random_population_with_pre_ordering,
+    generate_pre_ordering_population,
     generate_random_population,
     mutate,
+    inversion_mutate,
     order_crossover,
     sort_population,
     split_route_by_vehicles,
     calculate_multi_vehicle_fitness,
 )
 
-from draw_functions import draw_cities, draw_paths, draw_plot, draw_text
+from scenario_randomizer import randomize_scenario
+
+from hist import salvar_execucao
+
+from draw_functions import draw_cities, draw_paths, draw_plot, draw_text, save_html_map
 from hospital_data import hospital_locations, hospital_names, priorities, time_windows, weights
-from llm_report import generate_llm_prompt
 
 # Configuracoes do Pygame.
 WIDTH, HEIGHT = 950, 620
@@ -44,7 +50,7 @@ MUTATION_PROBABILITY = 0.25
 VEHICLE_CAPACITY = 60
 MAX_DISTANCE = 35
 TOURNAMENT_SIZE = 7
-N_VEHICLES = 5
+N_VEHICLES = 3
 
 # Cores.
 WHITE = (255, 255, 255)
@@ -375,7 +381,7 @@ def configuration_screen(screen, clock):
             y=355,
             width=290,
             min_value=50,
-            max_value=1000,
+            max_value=100000,
             initial_value=MAX_STAGNATION,
             step=50,
             label="Sem melhora",
@@ -470,6 +476,17 @@ def main():
     n_generations = config["N_GENERATIONS"]
     max_stagnation = config["MAX_STAGNATION"]
 
+    priorities_random, weights_random = randomize_scenario(
+        hospital_locations, 
+        priorities,
+        weights,
+        time_windows
+        #seed=42  # seed opcional para reproducibilidade
+    )
+    
+    priorities.update(priorities_random)
+    weights.update(weights_random)
+
     hospital_cost = make_hospital_cost(n_vehicles)
     background_map = load_background_map()
 
@@ -481,7 +498,9 @@ def main():
     baseline_route = cities_locations.copy()
     baseline_fitness = hospital_cost(baseline_route)
 
-    population = generate_random_population(cities_locations, population_size)
+    #population = generate_random_population_with_pre_ordering(cities_locations, population_size)
+    population = generate_pre_ordering_population(cities_locations, population_size)
+    #population = generate_random_population(cities_locations, population_size)
     population[0] = baseline_route
 
     best_fitness_values = []
@@ -637,7 +656,7 @@ def main():
             )
 
             child = order_crossover(parent1, parent2)
-            child = mutate(child, MUTATION_PROBABILITY)
+            child = inversion_mutate(child, MUTATION_PROBABILITY)
 
             new_population.append(child)
 
@@ -730,21 +749,37 @@ def main():
 
     print(f"\nMelhoria vs baseline: {round(improvement, 2)}%")
 
-    prompt = generate_llm_prompt(
+       
+    save_html_map(
+        baseline_route,
+        hospital_names,
+        priorities,
+        weights,
+        output_path="mapa_baseline.html"
+    )
+    
+    save_html_map(
         final_solution,
         hospital_names,
         priorities,
         weights,
-        final_fitness,
-        baseline_fitness,
-        final_distance,
-        n_vehicles=n_vehicles,
+        output_path="mapa_otimizado.html"
     )
+    
+    salvar_execucao(final_solution, 
+                    baseline_route, 
+                    hospital_names, 
+                    priorities, 
+                    weights, 
+                    final_fitness, 
+                    baseline_fitness, 
+                    final_distance,
+                    n_vehicles,
+                    population_size,
+                    n_generations,
+                    MUTATION_PROBABILITY)
 
-    with open("prompt_llm.txt", "w", encoding="utf-8") as file:
-        file.write(prompt)
-
-    print("\nArquivo prompt_llm.txt gerado com sucesso.")
+    print("\nArquivo prompt_llm.txt, mapa_baseline.html e mapa_otimizado.html gerados com sucesso.")
 
     pygame.quit()
 

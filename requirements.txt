@@ -1,3 +1,8 @@
-pygame
+pygame-ce
 matplotlib
 numpy
+scikit-learn
+folium
+groq
+python-dotenv
+pytest
