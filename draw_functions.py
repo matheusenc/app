@@ -9,7 +9,8 @@ A tela mostra:
 - pontos das unidades hospitalares;
 - melhor rota encontrada pelo algoritmo.
 """
-
+# import os
+# os.environ["MPLBACKEND"] = "Agg"
 import matplotlib
 
 # Usa o backend Agg para desenhar o grafico em memoria e depois enviar para o Pygame.

@@ -136,7 +136,8 @@ Ao iniciar, uma tela Pygame permite ajustar os parâmetros antes de executar:
 | População | 80 | Tamanho da população do GA |
 | Gerações máximas | 1000 | Limite de iterações |
 | Sem melhora | 250 | Critério de parada por estagnação |
-
+| Tipo de Inicialização | Heuristica | Inicio da população |
+| Ativação/Desativação do Elitismo | True | Ténica de Seleção |
 ---
 
 ## Cenários randomizados
