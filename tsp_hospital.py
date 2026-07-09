@@ -14,19 +14,19 @@ import pygame
 from pygame.locals import *
 
 from genetic_algorithm import (
-    calculate_fitness,
+    calculate_fitness_fromMatrix,
     calculate_hospital_fitness,
     calculate_operation_time,
     calculate_route_time,
     generate_random_population_with_pre_ordering,
     generate_pre_ordering_population,
     generate_random_population,
-    mutate,
     inversion_mutate,
     order_crossover,
     sort_population,
     split_route_by_vehicles,
     calculate_multi_vehicle_fitness,
+    create_distance_matrix,
 )
 
 from scenario_randomizer import randomize_scenario
@@ -72,7 +72,6 @@ VEHICLE_COLORS = [
     (255, 0, 255),    # Magenta
     (165, 42, 42),    # Marrom
 ]
-
 
 '''------------------------------------------------------------------
 Componente simples de slider para alterar valores numericos com o mouse.
@@ -177,6 +176,32 @@ class Slider:
         )
 
 '''------------------------------------------------------------------
+Componente simples de Toogle para ativar Randow.
+------------------------------------------------------------------'''
+class Toggle:
+    def __init__(self, x, y, width, height, initial_value=False, label=""):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.value = initial_value
+        self.label = label
+        self.font = pygame.font.SysFont(None, 20)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.rect.collidepoint(event.pos):
+                self.value = not self.value
+
+    def draw(self, screen):
+        # cor do botão
+        color = (0, 120, 0) if self.value else (255, 0, 0)
+        pygame.draw.rect(screen, color, self.rect, border_radius=10)
+
+        # texto
+        text = "ON" if self.value else "OFF"
+        label_surface = self.font.render(f"{self.label}: {text}", True, (255, 255, 255))
+        screen.blit(label_surface, (self.rect.x + 10, self.rect.y + 8))
+
+
+'''------------------------------------------------------------------
 Botoes para a tela de configuracao.
 ------------------------------------------------------------------'''
 class Button:
@@ -229,6 +254,54 @@ class Button:
         text_rect = text_surface.get_rect(center=self.rect.center)
         screen.blit(text_surface, text_rect)
 
+class RadioButton:
+    def __init__(self, x, y, radius, value, label="", group=None):
+        self.center = (x, y)
+        self.radius = radius
+        self.label = label
+        self.group = group
+        self.value = value
+        self.font = pygame.font.SysFont(None, 20)
+
+        # Rect usado só para clique (caixa ao redor do círculo)
+        self.rect = pygame.Rect(x - radius, y - radius, radius * 2, radius * 2)
+
+        if group is not None:
+            group.add(self)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.rect.collidepoint(event.pos):
+                if self.group:
+                    self.group.select(self)
+
+    def draw(self, screen):
+        # círculo externo
+        pygame.draw.circle(screen, (90, 90, 90), self.center, self.radius, 2)
+
+        # preenchido se selecionado
+        if self.group and self.group.selected == self:
+            pygame.draw.circle(screen, (90, 90, 90), self.center, self.radius // 2)
+
+        # texto ao lado
+        label_surface = self.font.render(self.label, True, (90, 90, 90))
+        screen.blit(label_surface, (self.center[0] + self.radius + 10, self.center[1] - 10))
+
+class RadioGroup:
+    def __init__(self):
+        self.buttons = []
+        self.selected = None
+
+    def add(self, button):
+        self.buttons.append(button)
+        if self.selected is None:
+            self.selected = button  # primeiro vira padrão
+
+    def select(self, button):
+        self.selected = button
+
+    def get_selected_value(self):
+        return self.selected.value if self.selected else None
 
 '''------------------------------------------------------------------
 Converte latitude/longitude para coordenadas de tela do Pygame.
@@ -261,18 +334,30 @@ def convert_route_to_screen(route):
 '''------------------------------------------------------------------
 Seleciona um pai por torneio.
 ------------------------------------------------------------------'''
-def tournament_selection(population, population_fitness, tournament_size):
-    competitors = random.sample(
-        list(zip(population, population_fitness)),
-        tournament_size,
-    )
+def tournament_selection(population, population_fitness, tournament_size, used):
+    available_indices = [
+        i for i in range(len(population))
+        if i not in used
+    ]
+
+    chosen_indices = random.sample(available_indices, tournament_size)
+
+    for i in chosen_indices:
+        used.add(i)
+
+    competitors = [
+        (population[i], population_fitness[i], i)
+        for i in chosen_indices
+    ]
+
     winner = min(competitors, key=lambda x: x[1])
+  
     return winner[0]
 
 '''------------------------------------------------------------------
 Cria a funcao de custo usando a quantidade de veiculos escolhida na tela inicial.
 ------------------------------------------------------------------'''
-def make_hospital_cost(n_vehicles):
+def make_hospital_cost(n_vehicles, matrix):
 
     def hospital_cost(route):
         """
@@ -282,6 +367,7 @@ def make_hospital_cost(n_vehicles):
         def single_vehicle_cost(r):
             return calculate_hospital_fitness(
                 r,
+                matrix,
                 priorities,
                 weights,
                 VEHICLE_CAPACITY,
@@ -313,7 +399,7 @@ def format_minutes(minutes):
 '''------------------------------------------------------------------
 Desenha a tela inicial de configuracao com sliders e botoes.
 ------------------------------------------------------------------'''
-def draw_config_screen(screen, sliders, start_button, exit_button):
+def draw_config_screen(screen, sliders, toggle_collision, radios, start_button, exit_button):
     screen.fill(WHITE)
 
     draw_text(screen, "CONFIGURACAO DO ALGORITMO", BLACK, position=(40, 35))
@@ -322,20 +408,33 @@ def draw_config_screen(screen, sliders, start_button, exit_button):
     pygame.draw.rect(
         screen,
         (245, 245, 245),
-        pygame.Rect(30, 95, 360, 365),
+        pygame.Rect(30, 95, 360, 400),
         border_radius=12,
     )
 
     pygame.draw.rect(
         screen,
         DARK_GRAY,
-        pygame.Rect(30, 95, 360, 365),
+        pygame.Rect(30, 95, 360, 400),
         width=2,
         border_radius=12,
     )
 
     for slider in sliders:
         slider.draw(screen)
+
+    toggle_collision.draw(screen)
+
+    for radio in radios:
+        radio.draw(screen)
+
+    # dentro do loop:
+    for event in pygame.event.get():
+        for r in radios:
+            r.handle_event(event)
+
+    for r in radios:
+        r.draw(screen)
 
     start_button.draw(screen)
     exit_button.draw(screen)
@@ -348,7 +447,7 @@ def configuration_screen(screen, clock):
     sliders = [
         Slider(
             x=55,
-            y=145,
+            y=130,
             width=290,
             min_value=1,
             max_value=8,
@@ -358,9 +457,9 @@ def configuration_screen(screen, clock):
         ),
         Slider(
             x=55,
-            y=215,
+            y=180,
             width=290,
-            min_value=20,
+            min_value=50,
             max_value=500,
             initial_value=POPULATION_SIZE,
             step=10,
@@ -368,7 +467,7 @@ def configuration_screen(screen, clock):
         ),
         Slider(
             x=55,
-            y=285,
+            y=230,
             width=290,
             min_value=100,
             max_value=5000,
@@ -378,19 +477,36 @@ def configuration_screen(screen, clock):
         ),
         Slider(
             x=55,
-            y=355,
+            y=280,
             width=290,
-            min_value=50,
-            max_value=100000,
+            min_value=100,
+            max_value=4000,
             initial_value=MAX_STAGNATION,
             step=50,
             label="Sem melhora",
         ),
     ]
 
+    toggle_collision = Toggle(
+        x=55,
+        y=310,
+        width=290,
+        height=30,
+        initial_value=True,
+        label="Manter Elitismo"
+    )
+
+    group = RadioGroup()
+
+    radio1 = RadioButton(55, 370, 10, 100, "Inicialização Heuristica", group)
+    radio2 = RadioButton(55, 395, 10, 0, "Inicialização Aleatória", group)
+    radio3 = RadioButton(55, 420, 10, 50, "Inicialização Misturada", group)
+
+    radios = [radio1, radio2, radio3]
+
     start_button = Button(
         x=55,
-        y=410,
+        y=450,
         width=135,
         height=38,
         text="INICIAR",
@@ -399,7 +515,7 @@ def configuration_screen(screen, clock):
 
     exit_button = Button(
         x=210,
-        y=410,
+        y=450,
         width=135,
         height=38,
         text="SAIR",
@@ -432,7 +548,12 @@ def configuration_screen(screen, clock):
             for slider in sliders:
                 slider.handle_event(event)
 
-        draw_config_screen(screen, sliders, start_button, exit_button)
+            for radio in radios:
+                radio.handle_event(event)
+
+            toggle_collision.handle_event(event)
+
+        draw_config_screen(screen, sliders, toggle_collision, radios, start_button, exit_button)
         pygame.display.flip()
         clock.tick(FPS)
 
@@ -441,6 +562,8 @@ def configuration_screen(screen, clock):
         "POPULATION_SIZE": sliders[1].value,
         "N_GENERATIONS": sliders[2].value,
         "MAX_STAGNATION": sliders[3].value,
+        "MANTER_ELITISMO" : toggle_collision.value,
+        "TIPO_INICIALIZACAO" : group.get_selected_value(),
     }
 
 '''------------------------------------------------------------------
@@ -476,6 +599,7 @@ def main():
     n_generations = config["N_GENERATIONS"]
     max_stagnation = config["MAX_STAGNATION"]
 
+    # # if config["ATIVAR_RANDOM"] :
     priorities_random, weights_random = randomize_scenario(
         hospital_locations, 
         priorities,
@@ -483,24 +607,33 @@ def main():
         time_windows
         #seed=42  # seed opcional para reproducibilidade
     )
-    
+        
     priorities.update(priorities_random)
     weights.update(weights_random)
+    time_windows.update(time_windows)
 
-    hospital_cost = make_hospital_cost(n_vehicles)
+    points = list(hospital_names.keys())
+
+    matrix = create_distance_matrix(points)
+
+    hospital_cost = make_hospital_cost(n_vehicles, matrix)
     background_map = load_background_map()
 
     generation_counter = itertools.count(start=1)
-    cities_locations = hospital_locations
+    # cities_locations = hospital_names
+    
+    screen_locations = convert_route_to_screen(points)
 
-    screen_locations = convert_route_to_screen(cities_locations)
-
-    baseline_route = cities_locations.copy()
+    baseline_route = points.copy()
     baseline_fitness = hospital_cost(baseline_route)
 
-    #population = generate_random_population_with_pre_ordering(cities_locations, population_size)
-    population = generate_pre_ordering_population(cities_locations, population_size)
-    #population = generate_random_population(cities_locations, population_size)
+    if config["TIPO_INICIALIZACAO"] == 100 : 
+        population = generate_pre_ordering_population(points, population_size)
+    elif  config["TIPO_INICIALIZACAO"] == 50 : 
+        population = generate_random_population_with_pre_ordering(points, population_size)
+    else:
+        population = generate_random_population(points, population_size)
+    
     population[0] = baseline_route
 
     best_fitness_values = []
@@ -546,7 +679,7 @@ def main():
         best_solutions.append(best_solution)
 
         improvement = ((baseline_fitness - best_fitness) / baseline_fitness) * 100
-        best_solution_screen = convert_route_to_screen(best_solution)
+        # best_solution_screen = convert_route_to_screen(best_solution)
 
         draw_plot(
             screen,
@@ -562,17 +695,19 @@ def main():
             NODE_RADIUS
         )
 
+        #desenha a rota dos veiculos para a melhorar solução
         vehicle_routes_current = split_route_by_vehicles(
             best_solution,
             n_vehicles
         )
 
         for vehicle_id, route in enumerate(vehicle_routes_current):
-
             if len(route) < 2:
                 continue
 
-            route_screen = convert_route_to_screen(route)
+            route_only = [city for city, _ in route]
+
+            route_screen = convert_route_to_screen(route_only)
 
             color = VEHICLE_COLORS[
                 vehicle_id % len(VEHICLE_COLORS)
@@ -583,6 +718,30 @@ def main():
                 route_screen,
                 color,
                 width=3
+            )
+
+        vehicle_routes_current = split_route_by_vehicles(
+            population[1],
+            n_vehicles
+        )
+
+        for vehicle_id, route in enumerate(vehicle_routes_current):
+            if len(route) < 2:
+                continue
+
+            route_only = [city for city, _ in route]
+
+            route_screen = convert_route_to_screen(route_only)
+
+            color = VEHICLE_COLORS[
+                vehicle_id % len(VEHICLE_COLORS)
+            ]
+
+            draw_paths(
+                screen,
+                route_screen,
+                color,
+                width=1
             )
 
         draw_text(screen, f"Geracao: {generation}/{n_generations}", BLACK, position=(20, 400))
@@ -598,6 +757,7 @@ def main():
         legend_x = 20  
         aux = 1
 
+        #desenha a legenda dos veiculos utilizados
         for vehicle_id in range(n_vehicles):
             if vehicle_id > 3:
                 legend_x = 200 
@@ -641,22 +801,36 @@ def main():
             running = False
             break
 
-        new_population = [population[0]]
+        if config["MANTER_ELITISMO"] :
+            new_population = [population[0]]
+        else :
+            new_population = []
 
         while len(new_population) < population_size:
+            used = set()
+
             parent1 = tournament_selection(
                 population,
                 population_fitness,
                 TOURNAMENT_SIZE,
+                used,
             )
+
             parent2 = tournament_selection(
                 population,
                 population_fitness,
                 TOURNAMENT_SIZE,
+                used,
             )
 
+            forceMutation = False
+
+            if generations_without_improvement > 100 or generations_without_improvement > max_stagnation * 0.50:
+                forceMutation = True
+                draw_text(screen, "Mutação Forte Ativada", RED, position=(200, 500))
+
             child = order_crossover(parent1, parent2)
-            child = inversion_mutate(child, MUTATION_PROBABILITY)
+            child = inversion_mutate(child, MUTATION_PROBABILITY, forceMutation)
 
             new_population.append(child)
 
@@ -671,7 +845,7 @@ def main():
 
     final_solution = best_solutions[-1]
     final_fitness = best_fitness_values[-1]
-    final_distance = calculate_fitness(final_solution)
+    final_distance = calculate_fitness_fromMatrix(final_solution, matrix, True)
     improvement = ((baseline_fitness - final_fitness) / baseline_fitness) * 100
 
     print("\n==============================")
@@ -686,8 +860,8 @@ def main():
     vehicle_times = []
 
     for vehicle_id, route in enumerate(vehicle_routes, start=1):
-        route_distance = calculate_fitness(route)
-        route_time = calculate_route_time(route)
+        route_distance = calculate_fitness_fromMatrix(route, matrix, False)
+        route_time = calculate_route_time(matrix, route)
 
         total_vehicle_distance += route_distance
         total_vehicle_time += route_time
@@ -700,9 +874,9 @@ def main():
 
         for city in route:
             print(
-                f"{hospital_names[city]} "
-                f"| Prioridade {priorities[city]} "
-                f"| Peso {weights[city]}kg"
+                f"{hospital_names[city[0]]} "
+                f"| Prioridade {priorities[city[0]]} "
+                f"| Peso {weights[city[0]]}kg"
             )
 
         print(f"\nDistancia do veiculo {vehicle_id}: {round(route_distance, 2)} km")
@@ -710,11 +884,13 @@ def main():
         print(f"Tempo formatado: {format_minutes(route_time)}")
 
     baseline_time = calculate_operation_time(
+        matrix,
         baseline_route,
         n_vehicles,
     )
 
     final_time = calculate_operation_time(
+        matrix,
         final_solution,
         n_vehicles,
     )

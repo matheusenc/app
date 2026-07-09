@@ -12,6 +12,7 @@ import random
 from typing import Dict, List, Optional, Tuple
 from sklearn.neighbors import NearestNeighbors
 import numpy as np
+from hospital_data import hospital
 
 Point = Tuple[float, float]
 Route = List[Point]
@@ -30,7 +31,7 @@ def order_by_nearest(coords_rad, cities_coords, n):
     current = 0
 
     for _ in range(n - 1):
-        distances, indices = nbrs.kneighbors([coords_rad[current]])
+        _, indices = nbrs.kneighbors([coords_rad[current]])
         for idx in indices[0]:
             if not visited[idx]:
                 visited[idx] = True
@@ -93,7 +94,6 @@ def  generate_pre_ordering_population(
 
     return population
 
-
 def generate_random_population(
     cities_location: List[Point],
     population_size: int
@@ -103,7 +103,6 @@ def generate_random_population(
         random.sample(cities_location, len(cities_location))
         for _ in range(population_size)
     ]
-
 
 
 '''------------------------------------------------------------------
@@ -135,24 +134,48 @@ def calculate_distance(point1: Point, point2: Point) -> float:
 
     return earth_radius_km * c
 
+# Criar matriz de distância
+def create_distance_matrix(points):
+    n = len(points)
+    matrix = [[0.0] * n for _ in range(n)]
+
+    for i in range(n):
+        for j in range(i, n):
+            incremento = 0
+
+            dist = calculate_distance(points[i], points[j])
+            matrix[i][j] = dist
+
+            if i != j:
+                incremento = random.random() * 0.6
+
+            matrix[j][i] = dist + incremento  # simetria
+
+    return matrix
+
 '''------------------------------------------------------------------
 Calcula a distancia total da rota fechada.
 A rota e fechada porque, no TSP, o veiculo retorna ao ponto inicial.
 ------------------------------------------------------------------'''
-def calculate_fitness(path: Route) -> float:
+def calculate_fitness_fromMatrix(path: Route, matrix, getIndexHospital) -> float:
     distance = 0.0
+    path2 = []
+
+    if getIndexHospital == True:
+        for _, city in enumerate(path):
+            path2.append((city, hospital[city]))
+        path = path2
+
     n = len(path)
 
     if n < 2:
         return 0.0
-
+    
     for i in range(n):
-        distance += calculate_distance(
-            path[i],
-            path[(i + 1) % n]
-        )
+        distance += matrix[path[i][1]][path[(i + 1) % n][1]]
 
     return distance
+
 
 '''------------------------------------------------------------------
 Executa o crossover ordenado, Order Crossover
@@ -186,6 +209,7 @@ def order_crossover(
         child.insert(position, gene)
 
     return child
+
 '''------------------------------------------------------------------
 Aplica mutacao por troca de dois pontos.
 ------------------------------------------------------------------'''
@@ -212,9 +236,10 @@ def mutate(
 
     return mutated_solution
 
-def inversion_mutate(solution, mutation_probability):
+def inversion_mutate(solution, mutation_probability, forceMutation):
     mutated = copy.deepcopy(solution)
-    if random.random() < mutation_probability:
+    
+    if (random.random() < mutation_probability) or forceMutation:
         i, j = sorted(random.sample(range(len(solution)), 2))
         mutated[i:j+1] = reversed(mutated[i:j+1])
     return mutated
@@ -248,10 +273,7 @@ Regras usadas:
 - ate 15 km: 25 km/h
 - acima de 15 km: 35 km/h
 ------------------------------------------------------------------'''
-def get_traffic_speed(point1: Point, point2: Point) -> float:
-
-    distance = calculate_distance(point1, point2)
-
+def get_traffic_speed(distance) -> float:
     if distance <= 5:
         return 18.0
 
@@ -266,24 +288,20 @@ considerando o modelo de transito simulado.
 
 Esta funcao considera somente os deslocamentos entre pontos consecutivos.
 ------------------------------------------------------------------'''
-def calculate_route_time(route: Route) -> float:
+def calculate_route_time(matrix, route: Route) -> float:
     if len(route) < 2:
         return 0.0
 
     elapsed_time = 0.0
 
     for i in range(1, len(route)):
-        previous_city = route[i - 1]
-        current_city = route[i]
+        previous_city = route[i - 1][1]
+        current_city = route[i][1]
 
-        distance = calculate_distance(
-            previous_city,
-            current_city
-        )
+        distance = matrix[previous_city][current_city]
 
         speed = get_traffic_speed(
-            previous_city,
-            current_city
+            distance
         )
 
         elapsed_time += (distance / speed) * 60.0
@@ -305,16 +323,17 @@ Menor fitness significa melhor solucao.
 ------------------------------------------------------------------'''
 def calculate_hospital_fitness(
     path: Route,
+    matrix_distancia: Dict[Point, str],
     priorities: Dict[Point, int],
     weights: Dict[Point, int],
     vehicle_capacity: int = 160,
     max_distance: int = 35,
     time_windows: Optional[Dict[Point, Tuple[int, int]]] = None,
 ) -> float:
-    distance = calculate_fitness(path)
+    distance = calculate_fitness_fromMatrix(path, matrix_distancia, False)
 
     total_weight = sum(
-        weights.get(city, 0)
+        weights.get(city[0], 0)
         for city in path
     )
 
@@ -339,14 +358,10 @@ def calculate_hospital_fitness(
         if i > 0:
             previous_city = path[i - 1]
 
-            segment_distance = calculate_distance(
-                previous_city,
-                city
-            )
+            segment_distance = matrix_distancia[previous_city[1]][city[1]]
 
             traffic_speed = get_traffic_speed(
-                previous_city,
-                city
+                segment_distance
             )
 
             elapsed_time += (
@@ -360,12 +375,11 @@ def calculate_hospital_fitness(
             elif traffic_speed <= 25.0:
                 traffic_penalty += segment_distance * 1.5
 
-        priority = priorities.get(city, 1)
+        priority = priorities.get(city[0], 1)
         priority_penalty += elapsed_time * (priority / 10) * 0.2
         
-
-        if time_windows and city in time_windows:
-            start, end = time_windows[city]
+        if time_windows and city[0] in time_windows:
+            start, end = time_windows[city[0]]
 
             if elapsed_time < start:
                 time_penalty += (
@@ -406,7 +420,7 @@ def split_route_by_vehicles(
 
     for index, city in enumerate(route):
         vehicle_index = index % n_vehicles
-        routes[vehicle_index].append(city)
+        routes[vehicle_index].append((city, hospital[city]))
 
     return routes
 
@@ -436,11 +450,11 @@ def calculate_multi_vehicle_fitness(
 
     return total_cost + (max_route_cost * 2)
 
-'''------------------------------------------------------------------
-Calcula o tempo de uma rota individual de um veiculo.
-------------------------------------------------------------------'''
-def calculate_vehicle_route_time(route: Route) -> float:
-    return calculate_route_time(route)
+# '''------------------------------------------------------------------
+# Calcula o tempo de uma rota individual de um veiculo.
+# ------------------------------------------------------------------'''
+# def calculate_vehicle_route_time(route: Route) -> float:
+#     return calculate_route_time(route)
 
 '''------------------------------------------------------------------
 Calcula o tempo total considerando multiplos veiculos
@@ -448,7 +462,8 @@ Calcula o tempo total considerando multiplos veiculos
 Como os veiculos trabalham em paralelo, o tempo total da operacao eh o maior
 tempo individual.
 ------------------------------------------------------------------'''
-def calculate_operation_time(
+def calculate_operation_time(  
+    matrix,   
     route: Route,
     n_vehicles: int = 3
 ) -> float:
@@ -459,7 +474,7 @@ def calculate_operation_time(
     )
 
     vehicle_times = [
-        calculate_route_time(vehicle_route)
+        calculate_route_time(matrix, vehicle_route)
         for vehicle_route in vehicle_routes
         if len(vehicle_route) > 0
     ]
