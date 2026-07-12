@@ -109,6 +109,9 @@ def salvar_execucao(
         "rotas": {
             "otimizada": _serialize_route(best_solution),
             "baseline": _serialize_route(baseline_route),
+            "por_veiculo": _dividir_por_veiculo(
+                best_solution, hospital_names, priorities, weights, n_vehicles
+            ),
         },
         "hospital_names": _serialize_point_dict(hospital_names),
         "priorities": _serialize_point_dict(priorities),
@@ -131,6 +134,40 @@ def salvar_execucao(
     print(f"Execucao salva em: {filepath}")
     return filepath
 
+
+def _dividir_por_veiculo(
+    route: List[Point],
+    hospital_names: Dict[Point, str],
+    priorities: Dict[Point, int],
+    weights: Dict[Point, int],
+    n_vehicles: int,
+) -> List[dict]:
+    """Divide a rota otimizada em blocos por veiculo, com paradas detalhadas."""
+    veiculos: List[List[Point]] = [[] for _ in range(n_vehicles)]
+    for idx, ponto in enumerate(route):
+        veiculos[idx % n_vehicles].append(ponto)
+
+    resultado = []
+    for v_idx, paradas in enumerate(veiculos, start=1):
+        stops = []
+        peso_total = 0
+        for ordem, ponto in enumerate(paradas, start=1):
+            peso = weights.get(ponto, 0)
+            peso_total += peso
+            stops.append({
+                "ordem": ordem,
+                "hospital": hospital_names.get(ponto, str(ponto)),
+                "prioridade": priorities.get(ponto, 1),
+                "peso_kg": peso,
+                "ponto": _point_to_key(ponto),
+            })
+        resultado.append({
+            "veiculo": v_idx,
+            "n_paradas": len(paradas),
+            "peso_total_kg": peso_total,
+            "paradas": stops,
+        })
+    return resultado
 
 # ---------------------------------------------------------------------------
 # Carregar registros
@@ -200,6 +237,7 @@ def deserializar_registro(registro: dict) -> dict:
         "rotas": {
             "otimizada": _deserialize_route(registro["rotas"]["otimizada"]),
             "baseline": _deserialize_route(registro["rotas"]["baseline"]),
+            "por_veiculo": registro["rotas"].get("por_veiculo", []),
         },
         "hospital_names": _deserialize_point_dict(registro["hospital_names"]),
         "priorities": _deserialize_point_dict(registro["priorities"]),

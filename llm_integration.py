@@ -254,12 +254,14 @@ Inclua:
 
 SYSTEM_QA = """
 Voce e um assistente especializado em logistica hospitalar.
-Voce tem acesso ao historico de rotas otimizadas por um Algoritmo Genetico.
+Voce tem acesso ao historico de rotas otimizadas por um Algoritmo Genetico,
+incluindo o detalhamento de paradas, prioridade e peso por veiculo em cada execucao.
 
 Regras:
 - Responda APENAS com base nos dados fornecidos no contexto.
 - Se a informacao nao estiver disponivel, diga claramente.
 - Seja conciso: responda a pergunta diretamente antes de elaborar.
+- Para perguntas sobre um veiculo especifico, use o bloco "Veiculo N" do registro correspondente.
 - Para perguntas comparativas, use os dados de todos os registros disponíveis.
 - Responda SOMENTE em portugues brasileiro.
 """
@@ -268,6 +270,7 @@ def responder_pergunta(
     pergunta: str,
     historico_registros: List[dict],
     conversa: Optional[List[dict]] = None,
+    incluir_detalhe_veiculos: bool = True,
 ) -> Tuple[str, List[dict]]:
     """
     Responde uma pergunta sobre as rotas usando o historico como contexto.
@@ -280,7 +283,9 @@ def responder_pergunta(
     client = _get_client()
 
     # Monta contexto compacto do historico
-    contexto = _formatar_contexto_historico(historico_registros)
+    contexto = _formatar_contexto_historico(
+        historico_registros, incluir_detalhe_veiculos=incluir_detalhe_veiculos
+    )
 
     # Inicializa ou continua a conversa
     if conversa is None:
@@ -308,17 +313,37 @@ def responder_pergunta(
 
     return resposta, conversa
 
+def _formatar_veiculos_contexto(registro: dict) -> str:
+    """Formata o detalhamento por veiculo de um registro para uso como contexto do Q&A."""
+    veiculos = registro.get("rotas", {}).get("por_veiculo")
+    if not veiculos:
+        return "  (detalhamento por veiculo nao disponivel para este registro)"
 
-def _formatar_contexto_historico(registros: List[dict]) -> str:
+    linhas = []
+    for v in veiculos:
+        linhas.append(
+            f"  Veiculo {v['veiculo']}: {v['n_paradas']} paradas, "
+            f"{v['peso_total_kg']}kg de carga total"
+        )
+        for parada in v["paradas"]:
+            linhas.append(
+                f"    {parada['ordem']}. {parada['hospital']} "
+                f"(prioridade {parada['prioridade']}, {parada['peso_kg']}kg)"
+            )
+    return "\n".join(linhas)
+
+def _formatar_contexto_historico(
+    registros: List[dict], incluir_detalhe_veiculos: bool = True
+) -> str:
     """Formata registros do historico em texto compacto para o contexto da LLM."""
     if not registros:
         return "Nenhum dado de historico disponivel."
 
-    linhas = []
+    blocos = []
     for r in registros:
         ind = r.get("indicadores", {})
         params = r.get("parametros_ga", {})
-        linhas.append(
+        cabecalho = (
             f"Data: {r['data']} | "
             f"Timestamp: {r.get('timestamp', 'N/A')} | "
             f"Custo GA: {ind.get('best_fitness', 'N/A')} | "
@@ -329,5 +354,8 @@ def _formatar_contexto_historico(registros: List[dict]) -> str:
             f"Populacao GA: {params.get('population_size', 'N/A')} | "
             f"Geracoes: {params.get('n_generations', 'N/A')}"
         )
+        if incluir_detalhe_veiculos:
+            cabecalho += "\n" + _formatar_veiculos_contexto(r)
+        blocos.append(cabecalho)
 
-    return "\n".join(linhas)
+    return "\n\n".join(blocos)
